@@ -1,0 +1,144 @@
+"""
+Database initialization script for Healthcare Search Trends.
+Run this script once to set up the database schema and add initial data.
+"""
+
+import sqlite3
+import pandas as pd
+import numpy as np
+from datetime import datetime
+import os
+from sqlalchemy import create_engine, text
+
+# Database configuration
+DB_PATH = 'healthcare_trends.db'
+
+def create_database():
+    """Create the database and tables"""
+    print(f"Creating database at {DB_PATH}")
+    
+    # Create database engine
+    engine = create_engine(f'sqlite:///{DB_PATH}')
+    
+    # Read schema SQL
+    with open('healthcare_trends_schema.sql', 'r') as f:
+        schema = f.read()
+    
+    # Execute schema statements
+    with engine.connect() as conn:
+        # Split and execute each statement
+        for statement in schema.split(';'):
+            if statement.strip():
+                conn.execute(text(statement))
+    
+    print("Database schema created successfully")
+    return engine
+
+def init_healthcare_categories(engine):
+    """Initialize the healthcare categories"""
+    print("Adding healthcare categories and terms...")
+    
+    categories = {
+        "Conditions": [
+            "Diabetes", "Hypertension", "Cancer", "Heart disease", "Asthma", 
+            "Arthritis", "Alzheimer's", "Depression", "Anxiety", "COVID-19"
+        ],
+        "Treatments": [
+            "Surgery", "Physical therapy", "Chemotherapy", "Radiation therapy", 
+            "Immunotherapy", "Telemedicine", "Telehealth", "Remote patient monitoring"
+        ],
+        "Specialties": [
+            "Cardiology", "Oncology", "Neurology", "Orthopedics", "Pediatrics", 
+            "Obstetrics", "Gynecology", "Dermatology", "Psychiatry"
+        ],
+        "Healthcare Services": [
+            "Urgent care", "Emergency room", "Primary care", "Hospital", 
+            "Clinic", "Rehabilitation", "Home health care", "Hospice"
+        ]
+    }
+    
+    # Store in database
+    timestamp = datetime.now()
+    for category, terms in categories.items():
+        for term in terms:
+            with engine.connect() as conn:
+                conn.execute(text('''
+                INSERT INTO tracked_terms (term, category, added_date, last_updated)
+                VALUES (:term, :category, :added_date, :last_updated)
+                ON CONFLICT(term) DO UPDATE SET
+                category = excluded.category,
+                last_updated = excluded.last_updated
+                '''), {
+                    'term': term,
+                    'category': category,
+                    'added_date': timestamp,
+                    'last_updated': timestamp
+                })
+    
+    print(f"Added {sum(len(terms) for terms in categories.values())} healthcare terms")
+
+def generate_demographic_data(engine):
+    """Generate mock demographic data if real data is unavailable"""
+    print("Generating demographic data...")
+    
+    # Check if demographic CSV exists
+    if os.path.exists('demographic_data.csv'):
+        print("Reading demographic data from CSV...")
+        df = pd.read_csv('demographic_data.csv')
+    else:
+        print("Generating mock demographic data...")
+        states = [
+            "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+            "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", 
+            "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
+            "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
+            "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", 
+            "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
+            "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
+            "Wisconsin", "Wyoming"
+        ]
+        
+        np.random.seed(42)  # For reproducible demo data
+        
+        df = pd.DataFrame({
+            'state': states,
+            'population': np.random.randint(500000, 40000000, size=len(states)),
+            'median_age': np.random.randint(30, 50, size=len(states)),
+            'income_per_capita': np.random.randint(25000, 75000, size=len(states)),
+            'healthcare_coverage_pct': np.random.randint(70, 98, size=len(states)),
+        })
+        
+        # Save to CSV for future use
+        df.to_csv('demographic_data.csv', index=False)
+    
+    # Add timestamp and save to database
+    df['last_updated'] = datetime.now()
+    df.to_sql('demographic_data', engine, if_exists='replace', index=False)
+    
+    print(f"Added demographic data for {len(df)} states")
+
+def main():
+    """Main initialization function"""
+    print("Initializing Healthcare Search Trends database...")
+    
+    # Check if database already exists
+    if os.path.exists(DB_PATH):
+        response = input(f"Database {DB_PATH} already exists. Reinitialize? (y/n): ")
+        if response.lower() != 'y':
+            print("Initialization cancelled.")
+            return
+    
+    # Create database and schema
+    engine = create_database()
+    
+    # Initialize healthcare categories
+    init_healthcare_categories(engine)
+    
+    # Generate demographic data
+    generate_demographic_data(engine)
+    
+    print("Database initialization complete!")
+    print("You can now run 'streamlit run app.py' to start the application.")
+
+if __name__ == "__main__":
+    main()
