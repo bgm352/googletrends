@@ -793,7 +793,7 @@ def main():
                 st.write(f"Tracked terms: {term_count}")
                 st.write(f"Data records: {data_count}")
             except:
-                      st.write(f"Tracked terms: {term_count}")
+            st.write(f"Tracked terms: {term_count}")
                 st.write(f"Data records: {data_count}")
             except Exception as e:
                 st.write("Database statistics unavailable")
