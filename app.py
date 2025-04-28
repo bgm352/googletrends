@@ -248,19 +248,15 @@ def load_demographic_data():
             })
             
             # Add healthcare coverage data from HHS or other source
-            # This is placeholder - in production, get real healthcare coverage data
-            # For now use realistic values based on state rankings
             healthcare_coverage = {
-                # Values from Kaiser Family Foundation data (example)
-                'Massachusetts': 97.5, 'Hawaii': 96.2, 'Vermont': 95.8, 
-                # More states would be added here
+                'Massachusetts': 97.5, 'Hawaii': 96.2, 'Vermont': 95.8,
+                # Add other states as needed
             }
-            # Set default coverage for states not in our data
+            
             df['healthcare_coverage_pct'] = df['state'].apply(
                 lambda x: healthcare_coverage.get(x, 87.0)  # US average ~87%
             )
             
-            # Store in database for future use
             df['last_updated'] = datetime.now()
             df.to_sql('demographic_data', engine, if_exists='replace', index=False)
             
@@ -328,7 +324,9 @@ def combine_with_demographics(trends_data, demographics):
     
     # Reset index to make 'state' a column
     trends_data = trends_data.reset_index()
-    trends_data = trends_data.rename(columns={'geoName': 'state'})
+    # The column from pytrends is 'geoName' for states
+    if 'geoName' in trends_data.columns:
+        trends_data = trends_data.rename(columns={'geoName': 'state'})
     
     # Merge with demographic data
     combined = pd.merge(trends_data, demographics, on='state', how='left')
@@ -398,4 +396,5 @@ def get_related_queries_with_retry(keywords, geo, timeframe='today 12-m', max_re
                 return {}
     logger.error("Failed to retrieve related queries after multiple attempts")
     return {}
+
 
