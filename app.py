@@ -791,7 +791,7 @@ def main():
                     data_count = conn.execute(text("SELECT COUNT(*) FROM trends_data")).scalar()
                 
                 st.write(f"Tracked terms: {
-                st.write(f"Tracked terms: {term_count}")
+                st.write(f"Tracked terms: {term_count}"),
                 st.write(f"Data records: {data_count}")
             except Exception as e:
                 st.write("Database statistics unavailable")
