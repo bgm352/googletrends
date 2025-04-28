@@ -1,0 +1,214 @@
+"""
+Background data updater for Healthcare Search Trends app.
+This script can be scheduled to run periodically outside of the Streamlit app.
+"""
+
+import pandas as pd
+import numpy as np
+from datetime import datetime
+import time
+import logging
+import os
+import sqlite3
+from sqlalchemy import create_engine, text
+from pytrends.request import TrendReq
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename='data_updater.log'
+)
+logger = logging.getLogger(__name__)
+
+# Database path
+DB_PATH = 'healthcare_trends.db'
+
+# Initialize PyTrends client
+def get_pytrends_client():
+    """Create and return a PyTrends client"""
+    return TrendReq(hl='en-US', tz=360, timeout=(10, 25), retries=2, backoff_factor=0.5)
+
+# Initialize database connection
+def init_db():
+    """Initialize database connection"""
+    try:
+        engine = create_engine(f'sqlite:///{DB_PATH}')
+        # Create tables if they don't exist
+        with engine.connect() as conn:
+            conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS trends_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                term TEXT,
+                region TEXT,
+                state TEXT,
+                interest FLOAT,
+                timestamp DATETIME
+            )
+            '''))
+            
+            conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS demographic_data (
+                state TEXT PRIMARY KEY,
+                population INTEGER,
+                median_age FLOAT,
+                income_per_capita INTEGER,
+                healthcare_coverage_pct FLOAT,
+                last_updated DATETIME
+            )
+            '''))
+            
+            conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS tracked_terms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                term TEXT UNIQUE,
+                category TEXT,
+                added_date DATETIME,
+                last_updated DATETIME
+            )
+            '''))
+        
+        logger.info("Database initialized successfully")
+        return engine
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {str(e)}")
+        return None
+
+# Get Google Trends data with retry logic
+def get_google_trends_data(keywords, geo, timeframe='today 12-m', max_retries=3):
+    """Get Google Trends data with retry logic"""
+    retries = 0
+    while retries < max_retries:
+        try:
+            pytrends = get_pytrends_client()
+            pytrends.build_payload(keywords, cat=0, timeframe=timeframe, geo=geo)
+            data = pytrends.interest_by_region(resolution='REGION', inc_low_vol=True)
+            logger.info(f"Successfully retrieved trends data for {keywords} in {geo}")
+            return data
+        except Exception as e:
+            if "quota" in str(e).lower() or "429" in str(e):
+                retries += 1
+                wait_time = 60 * retries  # Increase wait time with each retry
+                logger.warning(f"Rate limited by Google. Retry {retries}/{max_retries} in {wait_time} seconds...")
+                time.sleep(wait_time)  # Exponential backoff
+            else:
+                logger.error(f"Error fetching Google Trends data: {str(e)}")
+                return pd.DataFrame()
+    
+    logger.error("Failed to retrieve data after multiple attempts")
+    return pd.DataFrame()
+
+# Store trends data in database
+def store_trends_data(engine, term, region, data):
+    """Store Google Trends data in database"""
+    try:
+        timestamp = datetime.now()
+        
+        # Convert DataFrame to records for insertion
+        if not data.empty:
+            data = data.reset_index()
+            records = []
+            for _, row in data.iterrows():
+                records.append({
+                    'term': term,
+                    'region': region,
+                    'state': row['geoName'],
+                    'interest': float(row[term]),
+                    'timestamp': timestamp
+                })
+            
+            # Insert into database
+            df = pd.DataFrame(records)
+            df.to_sql('trends_data', engine, if_exists='append', index=False)
+            
+            # Update tracked terms
+            with engine.connect() as conn:
+                conn.execute(text('''
+                UPDATE tracked_terms
+                SET last_updated = :last_updated
+                WHERE term = :term
+                '''), {
+                    'last_updated': timestamp,
+                    'term': term
+                })
+            
+            logger.info(f"Stored trends data for {term} in {region}")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error storing trends data: {str(e)}")
+        return False
+
+# Update demographic data
+def update_demographic_data(engine):
+    """Update demographic data from external sources"""
+    try:
+        # In a production environment, fetch from Census API
+        # For now, check if demo data CSV exists
+        if os.path.exists('demographic_data.csv'):
+            df = pd.read_csv('demographic_data.csv')
+            df['last_updated'] = datetime.now()
+            df.to_sql('demographic_data', engine, if_exists='replace', index=False)
+            logger.info("Updated demographic data from CSV")
+            return True
+        else:
+            logger.warning("No demographic data source available")
+            return False
+    except Exception as e:
+        logger.error(f"Error updating demographic data: {str(e)}")
+        return False
+
+# Main update function
+def update_trends_database():
+    """Update trends data for tracked terms"""
+    engine = init_db()
+    if engine is None:
+        logger.error("Failed to initialize database")
+        return
+    
+    # First update demographic data (monthly)
+    update_demographic_data(engine)
+    
+    # Get list of terms to track from database
+    try:
+        with engine.connect() as conn:
+            query = text('''
+            SELECT term FROM tracked_terms
+            ORDER BY last_updated ASC
+            LIMIT 20  -- Update oldest 20 terms
+            ''')
+            terms_to_track = [row[0] for row in conn.execute(query).fetchall()]
+        
+        if not terms_to_track:
+            logger.info("No terms to update")
+            return
+    except Exception as e:
+        logger.error(f"Error fetching terms to update: {str(e)}")
+        return
+    
+    regions = ["US"]  # Could expand to more regions
+    
+    for term in terms_to_track:
+        for region in regions:
+            # Get fresh data
+            logger.info(f"Updating term: {term} in {region}")
+            data = get_google_trends_data([term], geo=region)
+            
+            # Store in database
+            if not data.empty:
+                store_trends_data(engine, term, region, data)
+            else:
+                logger.warning(f"No data retrieved for {term} in {region}")
+            
+            # Sleep to avoid rate limiting
+            time.sleep(15)
+    
+    logger.info(f"Updated trends data for {len(terms_to_track)} terms")
+
+if __name__ == "__main__":
+    logger.info("Starting data update process")
+    try:
+        update_trends_database()
+        logger.info("Data update completed successfully")
+    except Exception as e:
+        logger.error(f"Error in update process: {str(e)}", exc_info=True)
