@@ -1,0 +1,62 @@
+-- Database schema for healthcare_trends.db
+
+-- Table to store Google Trends data
+CREATE TABLE IF NOT EXISTS trends_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    term TEXT,             -- Search term
+    region TEXT,           -- Region code (US, CA, etc.)
+    state TEXT,            -- State name
+    interest FLOAT,        -- Interest score (0-100)
+    timestamp DATETIME     -- When data was collected
+);
+
+-- Create indexes for faster querying
+CREATE INDEX IF NOT EXISTS idx_trends_term ON trends_data(term);
+CREATE INDEX IF NOT EXISTS idx_trends_region ON trends_data(region);
+CREATE INDEX IF NOT EXISTS idx_trends_timestamp ON trends_data(timestamp);
+
+-- Table to store demographic data
+CREATE TABLE IF NOT EXISTS demographic_data (
+    state TEXT PRIMARY KEY,           -- State name
+    population INTEGER,               -- Population count
+    median_age FLOAT,                 -- Median age
+    income_per_capita INTEGER,        -- Income per capita
+    healthcare_coverage_pct FLOAT,    -- Healthcare coverage percentage
+    last_updated DATETIME             -- When data was last updated
+);
+
+-- Table to track search terms for automated updates
+CREATE TABLE IF NOT EXISTS tracked_terms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    term TEXT UNIQUE,       -- Search term
+    category TEXT,          -- Category (Conditions, Treatments, etc.)
+    added_date DATETIME,    -- When term was first added
+    last_updated DATETIME   -- When data was last refreshed
+);
+
+-- Create index for tracked terms
+CREATE INDEX IF NOT EXISTS idx_tracked_category ON tracked_terms(category);
+CREATE INDEX IF NOT EXISTS idx_tracked_updated ON tracked_terms(last_updated);
+
+-- View to show top opportunity markets
+CREATE VIEW IF NOT EXISTS opportunity_markets AS
+SELECT 
+    t.term,
+    t.state,
+    t.interest,
+    d.population,
+    d.healthcare_coverage_pct,
+    (t.interest * (100 - d.healthcare_coverage_pct) / 100) AS opportunity_score,
+    t.timestamp
+FROM 
+    trends_data t
+JOIN 
+    demographic_data d ON t.state = d.state
+WHERE
+    t.timestamp = (
+        SELECT MAX(timestamp) 
+        FROM trends_data 
+        WHERE term = t.term AND region = t.region
+    )
+ORDER BY 
+    opportunity_score DESC;
