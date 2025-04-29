@@ -1,17 +1,62 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
+
+# Set up error handling for imports
+import sys
+import subprocess
+import os
+
+# Function to install missing packages
+def install_package(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+    st.success(f"Installed {package}. Please restart the app.")
+    st.stop()
+
+# Try to import plotly, install if missing
+try:
+    import plotly.express as px
+except ImportError:
+    st.error("Plotly is not installed.")
+    if st.button("Install plotly"):
+        install_package("plotly")
+    st.stop()
 import requests
 from datetime import datetime, timedelta
-from pytrends.request import TrendReq
+
+# Try to import pytrends, install if missing
+try:
+    from pytrends.request import TrendReq
+except ImportError:
+    st.error("PyTrends is not installed.")
+    if st.button("Install pytrends"):
+        install_package("pytrends")
+    st.stop()
+
 import time
 import json
 import os
 import sqlite3
 import threading
-import schedule
-from sqlalchemy import create_engine, text
+
+# Try to import schedule, install if missing
+try:
+    import schedule
+except ImportError:
+    st.error("Schedule is not installed.")
+    if st.button("Install schedule"):
+        install_package("schedule")
+    st.stop()
+
+# Try to import sqlalchemy, install if missing
+try:
+    from sqlalchemy import create_engine, text
+except ImportError:
+    st.error("SQLAlchemy is not installed.")
+    if st.button("Install sqlalchemy"):
+        install_package("sqlalchemy")
+    st.stop()
+
 import logging
 
 # Configure logging
