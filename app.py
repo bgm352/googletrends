@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-# Fix for missing plotly import - ensure it's installed
 try:
     import plotly.express as px
 except ImportError:
@@ -803,5 +802,3 @@ if __name__ == "__main__":
     except Exception as e:
         st.error(f"Application error: {str(e)}")
         logger.error(f"Application error: {str(e)}")
-
-
