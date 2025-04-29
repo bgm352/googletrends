@@ -2,36 +2,32 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Set up error handling for imports
-import sys
-import subprocess
-import os
-
-# Function to install missing packages
-def install_package(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-    st.success(f"Installed {package}. Please restart the app.")
+# Import error message function
+def show_import_error(package_name):
+    st.error(f"""
+    {package_name} is not installed. 
+    
+    To fix this:
+    1. Add {package_name} to requirements.txt
+    2. Redeploy your app
+    
+    If you're running locally, run: pip install {package_name}
+    """)
     st.stop()
 
-# Try to import plotly, install if missing
+# Try imports with helpful error messages
 try:
     import plotly.express as px
 except ImportError:
-    st.error("Plotly is not installed.")
-    if st.button("Install plotly"):
-        install_package("plotly")
-    st.stop()
+    show_import_error("plotly")
 import requests
 from datetime import datetime, timedelta
 
-# Try to import pytrends, install if missing
+# Try imports with helpful error messages
 try:
     from pytrends.request import TrendReq
 except ImportError:
-    st.error("PyTrends is not installed.")
-    if st.button("Install pytrends"):
-        install_package("pytrends")
-    st.stop()
+    show_import_error("pytrends")
 
 import time
 import json
@@ -39,23 +35,15 @@ import os
 import sqlite3
 import threading
 
-# Try to import schedule, install if missing
 try:
     import schedule
 except ImportError:
-    st.error("Schedule is not installed.")
-    if st.button("Install schedule"):
-        install_package("schedule")
-    st.stop()
+    show_import_error("schedule")
 
-# Try to import sqlalchemy, install if missing
 try:
     from sqlalchemy import create_engine, text
 except ImportError:
-    st.error("SQLAlchemy is not installed.")
-    if st.button("Install sqlalchemy"):
-        install_package("sqlalchemy")
-    st.stop()
+    show_import_error("sqlalchemy")
 
 import logging
 
