@@ -1,18 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-try:
-    import plotly.express as px
-except ImportError:
-    st.error("Plotly is not installed. Please run 'pip install plotly' to continue.")
-    st.stop()
+import plotly.express as px
 import requests
 from datetime import datetime, timedelta
-try:
-    from pytrends.request import TrendReq
-except ImportError:
-    st.error("Pytrends is not installed. Please run 'pip install pytrends' to continue.")
-    st.stop()
+from pytrends.request import TrendReq
 import time
 import json
 import os
