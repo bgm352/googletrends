@@ -11,23 +11,6 @@ st.set_page_config(
 import pandas as pd
 import numpy as np
 
-# Try importing matplotlib and seaborn, but provide fallbacks if they're not available
-try:
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    visualization_available = True
-except ImportError:
-    visualization_available = False
-    st.warning("Visualization libraries (matplotlib, seaborn) are not available. Some features will be disabled.")
-
-# Page configuration
-st.set_page_config(
-    page_title="Data Explorer",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 # App title
 st.title("Data Explorer App")
 
@@ -56,21 +39,6 @@ with st.sidebar:
             st.success(f"Successfully loaded {uploaded_file.name}")
         except Exception as e:
             st.error(f"Error loading file: {e}")
-    
-    # Only show these options if data is loaded
-    if st.session_state.data is not None:
-        st.header("Analysis Options")
-        
-        # Get numerical columns for analysis
-        numerical_cols = st.session_state.data.select_dtypes(include=['int64', 'float64']).columns.tolist()
-        
-        if numerical_cols:
-            analysis_type = st.selectbox(
-                "Select Analysis Type",
-                ["Summary Statistics", "Data Visualization", "Correlation Analysis"]
-            )
-        else:
-            st.warning("No numerical columns found for analysis")
 
 # Main area - display data and analysis
 if st.session_state.data is not None:
@@ -95,87 +63,27 @@ if st.session_state.data is not None:
             for col, dtype in zip(st.session_state.data.columns, st.session_state.data.dtypes):
                 st.write(f"- {col}: {dtype}")
     
-    # Analysis section based on sidebar selection
-    if 'analysis_type' in locals():
-        st.header(f"{analysis_type}")
+    # Get numerical columns for simple statistics
+    numerical_cols = st.session_state.data.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    
+    if numerical_cols:
+        # Simple statistics
+        st.header("Summary Statistics")
+        st.write(st.session_state.data[numerical_cols].describe())
         
-        if analysis_type == "Summary Statistics":
-            st.write(st.session_state.data.describe())
-            
-            # Check for missing values
-            missing_values = st.session_state.data.isnull().sum()
-            if missing_values.sum() > 0:
-                st.subheader("Missing Values")
-                st.write(missing_values[missing_values > 0])
+        # Simple visualization with Streamlit's native charts
+        st.header("Data Visualization")
+        selected_col = st.selectbox("Select column for visualization", numerical_cols)
         
-        elif analysis_type == "Data Visualization":
-            # Let user select columns to visualize
-            selected_col = st.selectbox("Select column for visualization", numerical_cols)
+        if selected_col:
+            chart_type = st.radio("Select chart type", ["Line Chart", "Bar Chart", "Area Chart"])
             
-            if selected_col:
-                if visualization_available:
-                    chart_type = st.radio("Select chart type", ["Histogram", "Box Plot", "Line Plot"])
-                    
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    
-                    if chart_type == "Histogram":
-                        sns.histplot(data=st.session_state.data, x=selected_col, kde=True, ax=ax)
-                        ax.set_title(f"Histogram of {selected_col}")
-                    
-                    elif chart_type == "Box Plot":
-                        sns.boxplot(y=st.session_state.data[selected_col], ax=ax)
-                        ax.set_title(f"Box Plot of {selected_col}")
-                    
-                    elif chart_type == "Line Plot":
-                        if len(st.session_state.data) > 100:
-                            # For large datasets, sample for better visualization
-                            sample_data = st.session_state.data.sample(n=100)
-                        else:
-                            sample_data = st.session_state.data
-                        
-                        sns.lineplot(data=sample_data, y=selected_col, x=sample_data.index, ax=ax)
-                        ax.set_title(f"Line Plot of {selected_col}")
-                    
-                    st.pyplot(fig)
-                else:
-                    # Use Streamlit's built-in chart capabilities instead
-                    chart_type = st.radio("Select chart type", ["Line Chart", "Bar Chart", "Area Chart"])
-                    
-                    if chart_type == "Line Chart":
-                        st.line_chart(st.session_state.data[selected_col])
-                    elif chart_type == "Bar Chart":
-                        st.bar_chart(st.session_state.data[selected_col])
-                    elif chart_type == "Area Chart":
-                        st.area_chart(st.session_state.data[selected_col])
-        
-        elif analysis_type == "Correlation Analysis":
-            # Only include numerical columns
-            corr_data = st.session_state.data[numerical_cols]
-            
-            # Calculate and display correlation matrix
-            if len(numerical_cols) > 1:
-                corr_matrix = corr_data.corr()
-                
-                if visualization_available:
-                    fig, ax = plt.subplots(figsize=(10, 8))
-                    heatmap = sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', ax=ax)
-                    ax.set_title("Correlation Matrix")
-                    st.pyplot(fig)
-                else:
-                    # Display correlation matrix as a table
-                    st.subheader("Correlation Matrix")
-                    st.dataframe(corr_matrix.style.background_gradient(cmap='coolwarm'))
-                
-                # Show strongest correlations
-                st.subheader("Top 5 Strongest Correlations")
-                # Get the upper triangle of the correlation matrix
-                upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool_))
-                # Find the top 5 correlations
-                highest_corr = upper.unstack().sort_values(ascending=False).head(5)
-                for (col1, col2), corr_val in highest_corr.items():
-                    st.write(f"**{col1}** and **{col2}**: {corr_val:.3f}")
-            else:
-                st.warning("Need at least two numerical columns for correlation analysis")
+            if chart_type == "Line Chart":
+                st.line_chart(st.session_state.data[selected_col])
+            elif chart_type == "Bar Chart":
+                st.bar_chart(st.session_state.data[selected_col])
+            elif chart_type == "Area Chart":
+                st.area_chart(st.session_state.data[selected_col])
 
 else:
     # Display instructions when no data is loaded
