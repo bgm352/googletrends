@@ -1,8 +1,15 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+# Try importing matplotlib and seaborn, but provide fallbacks if they're not available
+try:
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    visualization_available = True
+except ImportError:
+    visualization_available = False
+    st.warning("Visualization libraries (matplotlib, seaborn) are not available. Some features will be disabled.")
 
 # Page configuration
 st.set_page_config(
@@ -97,29 +104,40 @@ if st.session_state.data is not None:
             selected_col = st.selectbox("Select column for visualization", numerical_cols)
             
             if selected_col:
-                chart_type = st.radio("Select chart type", ["Histogram", "Box Plot", "Line Plot"])
-                
-                fig, ax = plt.subplots(figsize=(10, 6))
-                
-                if chart_type == "Histogram":
-                    sns.histplot(data=st.session_state.data, x=selected_col, kde=True, ax=ax)
-                    ax.set_title(f"Histogram of {selected_col}")
-                
-                elif chart_type == "Box Plot":
-                    sns.boxplot(y=st.session_state.data[selected_col], ax=ax)
-                    ax.set_title(f"Box Plot of {selected_col}")
-                
-                elif chart_type == "Line Plot":
-                    if len(st.session_state.data) > 100:
-                        # For large datasets, sample for better visualization
-                        sample_data = st.session_state.data.sample(n=100)
-                    else:
-                        sample_data = st.session_state.data
+                if visualization_available:
+                    chart_type = st.radio("Select chart type", ["Histogram", "Box Plot", "Line Plot"])
                     
-                    sns.lineplot(data=sample_data, y=selected_col, x=sample_data.index, ax=ax)
-                    ax.set_title(f"Line Plot of {selected_col}")
-                
-                st.pyplot(fig)
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    
+                    if chart_type == "Histogram":
+                        sns.histplot(data=st.session_state.data, x=selected_col, kde=True, ax=ax)
+                        ax.set_title(f"Histogram of {selected_col}")
+                    
+                    elif chart_type == "Box Plot":
+                        sns.boxplot(y=st.session_state.data[selected_col], ax=ax)
+                        ax.set_title(f"Box Plot of {selected_col}")
+                    
+                    elif chart_type == "Line Plot":
+                        if len(st.session_state.data) > 100:
+                            # For large datasets, sample for better visualization
+                            sample_data = st.session_state.data.sample(n=100)
+                        else:
+                            sample_data = st.session_state.data
+                        
+                        sns.lineplot(data=sample_data, y=selected_col, x=sample_data.index, ax=ax)
+                        ax.set_title(f"Line Plot of {selected_col}")
+                    
+                    st.pyplot(fig)
+                else:
+                    # Use Streamlit's built-in chart capabilities instead
+                    chart_type = st.radio("Select chart type", ["Line Chart", "Bar Chart", "Area Chart"])
+                    
+                    if chart_type == "Line Chart":
+                        st.line_chart(st.session_state.data[selected_col])
+                    elif chart_type == "Bar Chart":
+                        st.bar_chart(st.session_state.data[selected_col])
+                    elif chart_type == "Area Chart":
+                        st.area_chart(st.session_state.data[selected_col])
         
         elif analysis_type == "Correlation Analysis":
             # Only include numerical columns
@@ -129,10 +147,15 @@ if st.session_state.data is not None:
             if len(numerical_cols) > 1:
                 corr_matrix = corr_data.corr()
                 
-                fig, ax = plt.subplots(figsize=(10, 8))
-                heatmap = sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', ax=ax)
-                ax.set_title("Correlation Matrix")
-                st.pyplot(fig)
+                if visualization_available:
+                    fig, ax = plt.subplots(figsize=(10, 8))
+                    heatmap = sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', ax=ax)
+                    ax.set_title("Correlation Matrix")
+                    st.pyplot(fig)
+                else:
+                    # Display correlation matrix as a table
+                    st.subheader("Correlation Matrix")
+                    st.dataframe(corr_matrix.style.background_gradient(cmap='coolwarm'))
                 
                 # Show strongest correlations
                 st.subheader("Top 5 Strongest Correlations")
